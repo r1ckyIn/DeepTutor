@@ -221,12 +221,19 @@ def _caller_refusal() -> str | None:
 
 
 def _is_owner(user: Any) -> bool:
+    from deeptutor.multi_user.models import LOCAL_ADMIN_ID
     from deeptutor.services import auth
 
     if not user.is_admin:
         return False
+    if not auth.AUTH_ENABLED:
+        return True
+    # Exactly one admin account, and the caller is it (scheduled jobs run as the
+    # local admin). No admin in the store (PocketBase accounts) fails closed, as
+    # does an admin token that outlived its role.
     # ponytail: reads the user store per call; cache it if that ever shows in profiles.
-    return not auth.AUTH_ENABLED or sum(u.get("role") == "admin" for u in auth.list_users()) <= 1
+    admins = [u for u in auth.list_users() if u.get("role") == "admin"]
+    return len(admins) == 1 and user.id in {admins[0].get("id"), LOCAL_ADMIN_ID}
 
 
 def _load_sdk() -> ModuleType:

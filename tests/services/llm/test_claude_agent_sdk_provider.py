@@ -568,17 +568,27 @@ def _user(role: str, user_id: str, tmp_path: Path) -> CurrentUser:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("role", "admins", "allowed"),
-    [(None, 1, False), ("user", 1, False), ("admin", 2, False), ("admin", 1, True)],
+    ("role", "user_id", "admins", "allowed"),
+    [
+        (None, "owner", 1, False),
+        ("user", "owner", 1, False),
+        ("admin", "owner", 2, False),
+        ("admin", "owner", 0, False),  # admins the store cannot see (PocketBase)
+        ("admin", "demoted", 1, False),  # an admin token that outlived its role
+        ("admin", "owner", 1, True),
+        ("admin", "local-admin", 1, True),  # scheduled jobs
+    ],
 )
-async def test_identity_guard_with_auth_enabled(monkeypatch, tmp_path, role, admins, allowed):
+async def test_identity_guard_with_auth_enabled(
+    monkeypatch, tmp_path, role, user_id, admins, allowed
+):
     monkeypatch.setattr("deeptutor.services.auth.AUTH_ENABLED", True)
     monkeypatch.setattr(
         "deeptutor.services.auth.list_users",
-        lambda: [{"role": "admin"}] * admins + [{"role": "user"}],
+        lambda: [{"id": "owner", "role": "admin"}] * admins + [{"id": "demoted", "role": "user"}],
     )
     FakeClient.script = [assistant(sdk.TextBlock(text="ok")), result()]
-    token = set_current_user(_user(role, "owner", tmp_path)) if role else None
+    token = set_current_user(_user(role, user_id, tmp_path)) if role else None
     try:
         response = await ClaudeAgentSDKProvider().chat([{"role": "user", "content": "q"}])
     finally:
