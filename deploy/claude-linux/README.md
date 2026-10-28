@@ -11,16 +11,18 @@
 | `deeptutor` | `deeptutor-claude:local`（本目录的 `Dockerfile`） | 上游 1.6.15 镜像 + 本 fork 的后端 + Claude Agent SDK。只在主机的 `127.0.0.1:3782` 发布前端；前端在容器内把 `/api/*`、`/ws/*` 转给 8001 上的后端，所以 8001 不发布 |
 | `deeptutor-sandbox-runner` | `deeptutor-runner:local`（仓库根目录的 `Dockerfile.runner`） | 执行模型生成的代码。只读挂载工作区，只能写 `outputs/`，看不到 `data/system` |
 | `deeptutor-ollama` | `ollama/ollama:0.40.12` | embedding：`qwen3-embedding:0.6b`，1024 维 |
-| `deeptutor-speaches` | `ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cpu` | 语音，OpenAI 兼容接口：Kokoro 朗读（`/v1/audio/speech`），faster-whisper 听写（`/v1/audio/transcriptions`） |
+| `deeptutor-speaches` | `ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cpu` | 语音，OpenAI 兼容接口：faster-whisper 听写（`/v1/audio/transcriptions`）；Kokoro 朗读（`/v1/audio/speech`）只能读英文，留作离线备用 |
+| `deeptutor-edge-tts` | `deeptutor-edge-tts:local`（本目录的 `edge-tts/`） | 朗读，默认用它：`server.py` 把 OpenAI 兼容的 `/v1/audio/speech` 请求交给 edge-tts，用微软 Edge 的在线音色，中英文都能读，不用账号和 key |
 
 - 数据都在仓库根目录的 `data/`（已被 git 忽略），也就是 `~/dev/DeepTutor/data`，备份这一个目录即可。模型在命名卷 `deeptutor_ollama`、`deeptutor_speaches-hf` 里。
-- runner 只接在 `deeptutor-network` 上，ollama 和 speaches 只接在 `models` 上，两个网络都接的只有 `deeptutor`。runner 里的代码因此连不到本地模型服务。
+- runner 只接在 `deeptutor-network` 上，ollama、speaches、edge-tts 只接在 `models` 上，两个网络都接的只有 `deeptutor`。runner 里的代码因此连不到这些模型服务。
 - 视频生成不配置。没有视频模型时，DeepTutor 每轮会自动去掉这个工具。
 
 | 文件 | 用途 |
 |---|---|
 | `Dockerfile` | overlay 镜像。只用 legacy builder 能构建的语法，因为主机没装 buildx |
-| `compose.yaml` | 四个服务，项目名 `deeptutor` |
+| `compose.yaml` | 五个服务，项目名 `deeptutor` |
+| `edge-tts/` | 朗读服务的镜像：`python:3.11-slim` 加固定版本的 edge-tts，和二十来行的 `server.py` |
 | `compose.gpu.yaml` | GPU 覆盖：ollama、speaches 申请 NVIDIA GPU，speaches 换成 CUDA 镜像 |
 | `up.sh` | 从 stdin 读 token，带着它执行 `docker compose up -d --remove-orphans` |
 | `seed/` | 首次启动后的配置。`seed.sh` 先下载模型，再用 DeepTutor 自己的 CLI（`setup.json`）和设置服务（`catalog.py`）写配置；`test_catalog.py` 是 `catalog.py` 的单测，在仓库根目录用 `python -m pytest -q deploy/claude-linux/seed/test_catalog.py` 运行 |
@@ -29,7 +31,7 @@
 
 Linux 主机：
 
-- Docker 和 Compose v2。不需要 buildx：两个镜像都用 `docker build`（legacy builder）构建。
+- Docker 和 Compose v2。不需要 buildx：三个镜像都用 `docker build`（legacy builder）构建。
 - git。
 - Tailscale 已登录，并已执行过 `sudo tailscale set --operator=$USER`，之后 `tailscale serve` 不用 sudo。
 - tailnet 后台开了 MagicDNS 和 HTTPS 证书。没开的话，第一次 `tailscale serve` 会给出开启链接。
@@ -48,12 +50,13 @@ Mac：
 git clone https://github.com/<owner>/DeepTutor.git ~/dev/DeepTutor
 ```
 
-### 2. 构建两个镜像（Linux）
+### 2. 构建三个镜像（Linux）
 
 ```bash
 cd ~/dev/DeepTutor
 docker build -f deploy/claude-linux/Dockerfile -t deeptutor-claude:local .
 docker build -f Dockerfile.runner -t deeptutor-runner:local .
+docker build -t deeptutor-edge-tts:local deploy/claude-linux/edge-tts
 ```
 
 第一条会拉 `ghcr.io/hkuds/deeptutor:1.6.15`（压缩后约 818 MB），再装 `claude-agent-sdk==0.2.174`，它自带约 290 MB 的 Claude CLI。没装 buildx 时 `docker build` 会提示 legacy builder 已弃用，可以忽略。
@@ -94,7 +97,7 @@ token 的去向：
 3. `python -m deeptutor_cli config apply`，用的是 `setup.json`：LLM 用 `claude_agent_sdk` 并设为 active；embedding 用 Ollama，地址 `http://ollama:11434/api/embed`，1024 维；搜索用 DuckDuckGo；端口固定为 8001/3782。
 4. `catalog.py` 通过 DeepTutor 的设置服务，补上 `config apply` 写不了的部分：
    - Claude 模型 `claude-sonnet-5-5`（active）、`claude-opus-5-5`、`claude-haiku-5-5`、`claude-fable-5-1`。每个都写 1M 上下文（来源 manual），开 tools 和 vision、关 json_output，推理档位 low 到 max。
-   - 朗读：binding 用「OpenAI Compatible」（`custom`），地址 `http://speaches:8000/v1`。两个模型：「Kokoro en」（音色 `af_heart`，active）和「Kokoro zh」（音色 `zf_xiaobei`）。speaches 按音色决定 Kokoro 的语言，中英文在「设置 → 语音」里切换。CPU 上合成长回复较慢，超时设为 300 秒。默认用英文，是因为「Kokoro zh」大概率没有声调：speaches 用 espeak-ng 给中文注音，espeak 标声调的符号不在 Kokoro 的词表里，会被丢掉（Kokoro 的中文音色是按 misaki 的注音训练的）。中文要先按第 8 步试听。
+   - 朗读：binding 都用「OpenAI Compatible」（`custom`），两个 profile。「Edge (online)」地址 `http://edge-tts:8000/v1`，模型「Edge Xiaoxiao (zh)」（音色 `zh-CN-XiaoxiaoNeural`，active，句子里夹的英文单词也能读）和「Edge Ava (en)」（音色 `en-US-AvaMultilingualNeural`）。「speaches (Kokoro, offline)」地址 `http://speaches:8000/v1`，只有「Kokoro en」（音色 `af_heart`），微软那边不可用时切过去，只能读英文。音色在「设置 → 语音」里切换，超时都设为 300 秒，长回复也够用。
    - 听写：同一个地址，模型 `Systran/faster-whisper-small`，语言留空表示自动识别，适合中英混说。
    - 生图：Codex 适配器，binding `openai_codex`，模型 `gpt-image-2`。要等第 7 步登录 Codex 之后才能用。
    - `auth.json` 打开登录；`system.json` 设 `sandbox_allow_subprocess=false`，代码只在 runner 里执行。这两个文件只在启动时读取，有改动时脚本会自动 `docker restart deeptutor`。
@@ -126,7 +129,7 @@ DeepTutor 在远程主机上，授权后的回调地址 `http://localhost:1455/a
 ### 8. 检查（Linux）
 
 ```bash
-docker ps --format '{{.Names}}\t{{.Status}}'      # 四个容器都应是 healthy
+docker ps --format '{{.Names}}\t{{.Status}}'      # edge-tts 没有健康检查，Up 即可；其余四个应是 healthy
 docker exec deeptutor sh -c 'test -n "$CLAUDE_CODE_OAUTH_TOKEN" && echo "token: set"'
 docker exec -u deeptutor deeptutor sh -c 'command -v claude || echo "claude: not on PATH"'
 docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --format json
@@ -134,7 +137,7 @@ docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --form
 
 然后在网页里发一条消息，确认回复是流式出来的，这同时验证了订阅可用。不要用 `doctor --online` 来验证：登录开着时，`docker exec` 起的 CLI 进程没有用户身份，owner 守卫会直接拒绝，不发请求也不计费，doctor 报 Provider response FAIL 并以 1 退出，看上去像 token 坏了，其实不是。要单独测一次模型，就用 owner 账号在「设置」里对 Claude 模型点测试，测试会带上当前登录的用户。
 
-最后在「设置 → 语音」里各测一次朗读和听写，再把朗读切到「Kokoro zh」念一句中文，听有没有声调。没有声调的话就别用它，另加一个 Kokoro-FastAPI 服务专做朗读（它用 misaki 给中文注音；固定版本号，只接 `models` 网络），听写继续用 speaches。
+最后在「设置 → 语音」里各测一次朗读和听写。朗读的测试句是中英混合的，默认的「Edge Xiaoxiao (zh)」应该两种语言都读出来。
 
 ## 日常维护
 
@@ -145,6 +148,7 @@ docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --form
   cd ~/dev/DeepTutor && git pull --ff-only
   docker build -f deploy/claude-linux/Dockerfile -t deeptutor-claude:local .
   docker build -f Dockerfile.runner -t deeptutor-runner:local .
+  docker build -t deeptutor-edge-tts:local deploy/claude-linux/edge-tts
   ```
 
   然后在 Mac 上跑第 3 步；`seed/` 有变化的话再跑第 4 步。compose 发现镜像变了，会重建对应的容器。fork 同步了上游新版本时，把 `Dockerfile` 的 `FROM` 标签改成同一个版本：overlay 只替换后端代码，不会重装依赖。
@@ -169,7 +173,8 @@ docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --form
   - 子代理接口 `/api/subagents` 只对 admin 开放（fork 的改动，见 `deeptutor/api/routers/subagents.py`）；
   - 模型生成的代码只在 runner 里执行。seed 把 `sandbox_allow_subprocess` 设成了 false，runner 挂掉时也不会退回主容器里执行；
   - 管理界面里有三处会在这个容器里、以同一个 uid 跑第三方代码，它们同样读得到 token：stdio 方式的 MCP 服务器、CLI 应用安装（会执行包里的 `setup.py`）、解析引擎的一键安装（`pip install`）。MCP 尽量用 HTTP/SSE 方式接入，CLI 应用和解析引擎只装信得过的。
-- **runner**：只读挂载工作区，只能写 `outputs/`，没有 `data/system`，访问不到 ollama 和 speaches。但它和 DeepTutor 在同一个网络里，所以登录必须一直开着。
+- **runner**：只读挂载工作区，只能写 `outputs/`，没有 `data/system`，访问不到 ollama、speaches 和 edge-tts。但它和 DeepTutor 在同一个网络里，所以登录必须一直开着。
+- **朗读**：用 Edge 音色时，要朗读的文本会发给微软的在线服务。edge-tts 用的是 Edge 浏览器「大声朗读」的接口，不是官方 API，微软改协议后它会失效，到时把 `edge-tts/Dockerfile` 里的版本号升到 edge-tts 的新版再重建，修好之前先切到「Kokoro en」。这个容器只接 `models` 网络，根文件系统只读，去掉了全部 capability，以 nobody 运行。
 - **端口**：只发布 `127.0.0.1:3782`，tailnet 访问走 `tailscale serve` 的 HTTPS。Docker 发布的端口会绕过 ufw，不要把它改成所有网卡。
 - **账号**：只保留你一个账号。partner（IM 机器人）只有在你本人聊天时才能用 Claude 订阅，别人发起的回合会被拒绝；但它生图用的是 owner 的 Codex 登录，所以不要把 partner 开放给别人。
 - `auth.json` 的 `cookie_secure` 保持默认的 false：前端和 API 同源，SameSite=Lax 就够了；设成 true 反而会把 cookie 改成 SameSite=None。
@@ -179,3 +184,4 @@ docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --form
 - 主机没有 buildx，`docker build` 走 legacy builder，会把整个仓库目录（扣除 `.dockerignore` 排除的部分）发给本机的 dockerd，其中包括 `data/` 下没被排除的子目录，比如 `data/system`。这些文件只在本机内传递，不会进镜像（`Dockerfile` 只 COPY 两个源码目录和 `pyproject.toml`），但 `data/` 很大时构建会变慢。
 - 前端沿用上游镜像里构建好的版本，fork 在 `web/` 下的改动不会生效。目前只有一处：Claude Agent 在设置页的图标，界面上会显示成默认图标。
 - speaches 固定在 `0.9.0-rc.3`：这是目前最新的带版本号构建，GitHub release 没有标成 prerelease；`latest-cpu` 仍指向 0.8.3。
+- speaches 的 Kokoro 读不了中文：它用 espeak 给文本注音，中文音色一合成就报 `RuntimeError: language "zh" is not supported by the espeak backend`，所以中文朗读交给了 edge-tts。

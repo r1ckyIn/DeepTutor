@@ -9,7 +9,10 @@ import importlib.util
 from pathlib import Path
 
 from deeptutor.services.config.model_catalog import ModelCatalogService
-from deeptutor.services.config.provider_runtime import resolve_imagegen_runtime_config
+from deeptutor.services.config.provider_runtime import (
+    resolve_imagegen_runtime_config,
+    resolve_tts_runtime_config,
+)
 from deeptutor.services.config.runtime_settings import RuntimeSettingsService
 from deeptutor.services.llm.provider_core.claude_agent_sdk_provider import CLAUDE_AGENT_SDK_MODELS
 from deeptutor_cli.setup_config import SetupConfig, prepare_profiles
@@ -50,9 +53,15 @@ def test_catalog_seed_is_idempotent(tmp_path):
             "max",
         ]
 
-    tts = first["services"]["tts"]
-    assert tts["active_model_id"] == "tts-model-kokoro-en"
-    assert [m["voice"] for m in tts["profiles"][0]["models"]] == ["zf_xiaobei", "af_heart"]
+    voices = {
+        p["id"]: [m["voice"] for m in p["models"]] for p in first["services"]["tts"]["profiles"]
+    }
+    assert voices == {
+        "tts-profile-speaches": ["af_heart"],
+        "tts-profile-edge": ["zh-CN-XiaoxiaoNeural", "en-US-AvaMultilingualNeural"],
+    }
+    tts = resolve_tts_runtime_config(catalog=first)
+    assert (tts.base_url, tts.voice) == (seed.EDGE_TTS_URL, "zh-CN-XiaoxiaoNeural")
     assert first["services"]["stt"]["profiles"][0]["base_url"] == seed.SPEACHES_URL
     assert resolve_imagegen_runtime_config(first, service=service).adapter == "openai_codex"
     assert first["services"]["videogen"]["profiles"] == []
