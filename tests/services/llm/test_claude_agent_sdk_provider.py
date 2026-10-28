@@ -694,3 +694,14 @@ async def test_inspect_cli_maps_startup_failures_and_timeouts(monkeypatch) -> No
 
     monkeypatch.setattr(FakeClient, "connect", slow_connect)
     assert (await provider_module.inspect_cli(timeout_s=0.05))["status"] == "timeout"
+
+
+@pytest.mark.asyncio
+async def test_inspect_cli_times_the_cli_not_the_wait_for_a_slot(monkeypatch) -> None:
+    slots = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(provider_module, "_CLI_SLOTS", slots)
+    FakeClient.server_info = {"account": {"tokenSource": "CLAUDE_CODE_OAUTH_TOKEN"}}
+    slots.acquire()  # every slot busy with real calls for a moment
+    asyncio.get_running_loop().call_later(0.2, slots.release)
+
+    assert (await provider_module.inspect_cli(timeout_s=0.1))["status"] == "connected"

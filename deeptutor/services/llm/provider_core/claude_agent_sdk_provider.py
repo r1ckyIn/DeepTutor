@@ -534,7 +534,8 @@ async def inspect_cli(timeout_s: float = 25) -> dict[str, Any]:
     models = [{"id": model, "services": ["llm"]} for model in CLAUDE_AGENT_SDK_MODELS]
     try:
         sdk = _load_sdk()
-        async with asyncio.timeout(timeout_s), _cli_slot():
+        # The clock starts once a slot is free: a busy CLI is not a silent one.
+        async with _cli_slot(), asyncio.timeout(timeout_s):
             client = sdk.ClaudeSDKClient(options=_options(sdk, DEFAULT_CLAUDE_AGENT_SDK_MODEL))
             try:
                 await client.connect()
