@@ -1,0 +1,23 @@
+# GPU override. up.sh adds it when `docker info` lists the nvidia runtime, i.e.
+# after nvidia-container-toolkit is installed and configured (see README.md).
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cuda-12.6.3
+    environment:
+      WHISPER__COMPUTE_TYPE: float16
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
