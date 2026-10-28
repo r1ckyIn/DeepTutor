@@ -1,0 +1,136 @@
+# DeepTutor on the owner's Linux host (runbook: README.md in this directory).
+# The Mac is only a browser: the app is published on 127.0.0.1:3782 and reached
+# through `tailscale serve`. Persistent state lives in the repo's data/ tree.
+#
+# Start and redeploy with up.sh, which receives CLAUDE_CODE_OAUTH_TOKEN on stdin.
+# Without that variable every `docker compose` command on this file fails, on
+# purpose; day to day use `docker logs|exec|restart <container_name>` instead.
+#
+# mem_limit values are caps for a 7.3 GB host shared with other work, not
+# reservations: ollama and speaches unload their models after 5 idle minutes.
+name: deeptutor
+
+services:
+  deeptutor:
+    image: deeptutor-claude:local
+    build: # documents the image; the runbook builds it with `docker build`
+      context: ../..
+      dockerfile: deploy/claude-linux/Dockerfile
+    container_name: deeptutor
+    restart: unless-stopped
+    ports:
+      # Frontend only. Next.js forwards /api/* and /ws/* to the backend on the
+      # container's loopback (web/proxy.ts), so 8001 is never published.
+      - "127.0.0.1:3782:3782"
+    volumes:
+      - ../../data:/app/data
+      - ../../data/user/workspace:/workspace
+    environment:
+      # Read only by the bundled Claude CLI; DeepTutor never reads or stores it.
+      CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:?deploy via up.sh, see README}"
+      # Either of these would outrank the subscription token in the CLI.
+      ANTHROPIC_API_KEY: ""
+      ANTHROPIC_AUTH_TOKEN: ""
+      # The SDK reads this from the process env, not from ClaudeAgentOptions.env.
+      CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK: "1"
+      DEEPTUTOR_SANDBOX_RUNNER_URL: http://sandbox-runner:8900
+      DEEPTUTOR_WORKSPACE_ROOT: /workspace
+      DEEPTUTOR_WORKSPACE_ALLOWED_ROOTS: /workspace
+      # Login is not an env switch here: the entrypoint unsets AUTH_* and
+      # re-exports them from data/user/settings/auth.json, which seed/ enables.
+    mem_limit: 3g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      sandbox-runner:
+        condition: service_healthy
+    networks:
+      - deeptutor-network
+      - models
+
+  # As in the repo's docker-compose.yml; only the image name and paths differ.
+  sandbox-runner:
+    image: deeptutor-runner:local
+    build:
+      context: ../..
+      dockerfile: Dockerfile.runner
+    container_name: deeptutor-sandbox-runner
+    restart: unless-stopped
+    volumes:
+      - ../../data/user/workspace:/workspace:ro
+      - ../../data/user/workspace/outputs:/workspace/outputs
+      - ../../data/cli-apps:/app/data/cli-apps:ro
+    environment:
+      DEEPTUTOR_RUNNER_ALLOWED_WORKDIRS: /workspace/outputs
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/runner
+    pids_limit: 256
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8900/health',timeout=3).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - deeptutor-network # not on `models`: untrusted code gets no route to ollama/speaches
+
+  # Embeddings (qwen3-embedding:0.6b, pulled by seed/seed.sh).
+  ollama:
+    image: ollama/ollama:0.40.12
+    container_name: deeptutor-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - models
+
+  # OpenAI-compatible voice: Kokoro on /v1/audio/speech, faster-whisper on
+  # /v1/audio/transcriptions. seed/seed.sh downloads both models into the volume.
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cpu
+    container_name: deeptutor-speaches
+    restart: unless-stopped
+    environment:
+      WHISPER__COMPUTE_TYPE: int8 # CPU; compose.gpu.yaml switches it to float16
+      ENABLE_UI: "false"
+      LOG_LEVEL: info
+    volumes:
+      - speaches-hf:/home/ubuntu/.cache/huggingface/hub
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - models
+
+networks:
+  deeptutor-network:
+    driver: bridge
+  models:
+    driver: bridge
+
+volumes:
+  ollama:
+  speaches-hf:
