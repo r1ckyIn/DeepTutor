@@ -9,7 +9,10 @@ import importlib.util
 from pathlib import Path
 
 from deeptutor.services.config.model_catalog import ModelCatalogService
+from deeptutor.services.config.provider_runtime import resolve_imagegen_runtime_config
 from deeptutor.services.config.runtime_settings import RuntimeSettingsService
+from deeptutor.services.llm.provider_core.claude_agent_sdk_provider import CLAUDE_AGENT_SDK_MODELS
+from deeptutor_cli.setup_config import SetupConfig, prepare_profiles
 
 _spec = importlib.util.spec_from_file_location(
     "seed_catalog", Path(__file__).with_name("catalog.py")
@@ -19,27 +22,12 @@ _spec.loader.exec_module(seed)
 
 
 def _config_apply(catalog: dict) -> None:
-    # The LLM profile `config apply` leaves behind (deeptutor_cli/setup_config.py).
-    catalog["services"]["llm"]["profiles"].append(
-        {
-            "id": seed.LLM_PROFILE_ID,
-            "name": "Agent Setup",
-            "binding": "claude_agent_sdk",
-            "base_url": "",
-            "api_key": "",
-            "models": [
-                {
-                    "id": "llm-model-agent-setup",
-                    "name": "claude-sonnet-5-5",
-                    "model": "claude-sonnet-5-5",
-                }
-            ],
-        }
-    )
+    # The LLM profile `config apply setup.json` writes, built by the CLI's own code.
+    setup = SetupConfig.model_validate_json(Path(__file__).with_name("setup.json").read_text())
+    catalog["services"]["llm"]["profiles"].append(prepare_profiles(setup)["llm"])
 
 
-def test_catalog_seed_is_idempotent(tmp_path, monkeypatch):
-    monkeypatch.setitem(seed.IMAGEGEN_PROVIDERS, seed.CODEX_IMAGEGEN_BINDING, object())
+def test_catalog_seed_is_idempotent(tmp_path):
     service = ModelCatalogService(tmp_path / "model_catalog.json")
     service.update(_config_apply)
 
@@ -49,7 +37,7 @@ def test_catalog_seed_is_idempotent(tmp_path, monkeypatch):
     llm = first["services"]["llm"]
     assert llm["active_model_id"] == "llm-model-claude-sonnet-5-5"
     (profile,) = llm["profiles"]
-    assert [m["model"] for m in profile["models"]] == list(seed.CLAUDE_MODELS)
+    assert [m["model"] for m in profile["models"]] == list(CLAUDE_AGENT_SDK_MODELS)
     for model in profile["models"]:
         assert model["context_window"] == 1_000_000
         assert model["context_window_source"] == "manual"
@@ -66,15 +54,8 @@ def test_catalog_seed_is_idempotent(tmp_path, monkeypatch):
     assert tts["active_model_id"] == "tts-model-kokoro-zh"
     assert [m["voice"] for m in tts["profiles"][0]["models"]] == ["zf_xiaobei", "af_heart"]
     assert first["services"]["stt"]["profiles"][0]["base_url"] == seed.SPEACHES_URL
-    assert first["services"]["imagegen"]["profiles"][0]["binding"] == seed.CODEX_IMAGEGEN_BINDING
+    assert resolve_imagegen_runtime_config(first, service=service).adapter == "openai_codex"
     assert first["services"]["videogen"]["profiles"] == []
-
-
-def test_imagegen_waits_for_the_binding(tmp_path, monkeypatch):
-    monkeypatch.delitem(seed.IMAGEGEN_PROVIDERS, seed.CODEX_IMAGEGEN_BINDING, raising=False)
-    service = ModelCatalogService(tmp_path / "model_catalog.json")
-    service.update(_config_apply)
-    assert service.update(seed.seed_catalog)["services"]["imagegen"]["profiles"] == []
 
 
 def test_settings_seed_reports_changes_once(tmp_path):

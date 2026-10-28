@@ -9,7 +9,6 @@ auth.json/system.json changed, because both are only read at startup.
 from __future__ import annotations
 
 from deeptutor.services.config import get_model_catalog_service, get_runtime_settings_service
-from deeptutor.services.config.provider_runtime import IMAGEGEN_PROVIDERS
 
 LLM_PROFILE_ID = "llm-profile-agent-setup"  # the profile `config apply` writes
 CLAUDE_MODELS = {
@@ -21,10 +20,6 @@ CLAUDE_MODELS = {
 SPEACHES_URL = "http://speaches:8000/v1"
 KOKORO = "speaches-ai/Kokoro-82M-v1.0-ONNX"  # same ids as the downloads in seed.sh
 WHISPER = "Systran/faster-whisper-small"
-# INTEGRATION: placeholder; must equal the IMAGEGEN_PROVIDERS key that the Codex
-# image adapter registers. An unknown binding silently falls back to "custom",
-# so the profile is only written once the image knows this one.
-CODEX_IMAGEGEN_BINDING = "openai_codex"
 
 
 def _upsert(service: dict, profile: dict, active_model_id: str) -> None:
@@ -94,25 +89,24 @@ def seed_catalog(catalog: dict) -> None:
         },
         "stt-model-whisper-small",
     )
-    if CODEX_IMAGEGEN_BINDING in IMAGEGEN_PROVIDERS:
-        _upsert(
-            services["imagegen"],
-            {
-                "id": "imagegen-profile-codex",
-                "name": "ChatGPT (Codex login)",
-                "binding": CODEX_IMAGEGEN_BINDING,
-                "base_url": "",  # empty = the provider's own default
-                "api_key": "",  # uses DeepTutor's Codex OAuth login, never a key
-                "models": [
-                    {
-                        "id": "imagegen-model-gpt-image-2",
-                        "name": "gpt-image-2",
-                        "model": "gpt-image-2",
-                    }
-                ],
-            },
-            "imagegen-model-gpt-image-2",
-        )
+    _upsert(
+        services["imagegen"],
+        {
+            "id": "imagegen-profile-codex",
+            "name": "ChatGPT (Codex login)",
+            "binding": "openai_codex",  # the Codex image adapter
+            "base_url": "",  # empty = the provider's own default
+            "api_key": "",  # uses DeepTutor's Codex OAuth login, never a key
+            "models": [
+                {
+                    "id": "imagegen-model-gpt-image-2",
+                    "name": "gpt-image-2",
+                    "model": "gpt-image-2",
+                }
+            ],
+        },
+        "imagegen-model-gpt-image-2",
+    )
 
 
 def seed_settings(runtime) -> bool:
@@ -132,8 +126,6 @@ def seed_settings(runtime) -> bool:
 
 
 def main() -> None:
-    if CODEX_IMAGEGEN_BINDING not in IMAGEGEN_PROVIDERS:
-        print(f"seed: imagegen skipped, this image has no {CODEX_IMAGEGEN_BINDING!r} binding yet")
     get_model_catalog_service().update(seed_catalog)
     print("seed: catalog updated")
     if seed_settings(get_runtime_settings_service()):

@@ -96,7 +96,7 @@ token 的去向：
    - Claude 模型 `claude-sonnet-5-5`（active）、`claude-opus-5-5`、`claude-haiku-5-5`、`claude-fable-5-1`。每个都写 1M 上下文（来源 manual），开 tools、关 vision 和 json_output，推理档位 low 到 max。
    - 朗读：binding 用「OpenAI Compatible」（`custom`），地址 `http://speaches:8000/v1`。两个模型：「Kokoro zh」（音色 `zf_xiaobei`，active）和「Kokoro en」（音色 `af_heart`）。speaches 按音色决定 Kokoro 的语言，中英文在「设置 → 语音」里切换。CPU 上合成长回复较慢，超时设为 300 秒。
    - 听写：同一个地址，模型 `Systran/faster-whisper-small`，语言留空表示自动识别，适合中英混说。
-   - 生图：Codex 适配器，binding `openai_codex`。如果镜像里还没有这个 binding，脚本会跳过并提示；合入后重跑 seed 即可。
+   - 生图：Codex 适配器，binding `openai_codex`，模型 `gpt-image-2`。要等第 7 步登录 Codex 之后才能用。
    - `auth.json` 打开登录；`system.json` 设 `sandbox_allow_subprocess=false`，代码只在 runner 里执行。这两个文件只在启动时读取，有改动时脚本会自动 `docker restart deeptutor`。
 
 ### 5. 开放给 tailnet（Linux，只做一次）
@@ -164,11 +164,11 @@ docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --form
 - **信任边界是整个 `deeptutor` 容器**。同容器、同 uid 的进程都能从 `/proc/<pid>/environ` 读到 token，前端的 Node 进程也继承了它。所以：
   - 不要设置 `DEEPTUTOR_EXTRAS`、`DEEPTUTOR_APT_PACKAGES`，不要装 `math-animator` extra（它执行模型生成的代码时不经过沙箱）；
   - 镜像里不装任何 agent CLI，`claude` 不在 PATH 上，只有 SDK 内置的那一份；
-  - 子代理接口 `/api/subagents` 必须只对 admin 开放。这是 fork 里的代码改动，部署前确认已经合入；
+  - 子代理接口 `/api/subagents` 只对 admin 开放（fork 的改动，见 `deeptutor/api/routers/subagents.py`）；
   - 模型生成的代码只在 runner 里执行。seed 把 `sandbox_allow_subprocess` 设成了 false，runner 挂掉时也不会退回主容器里执行。
 - **runner**：只读挂载工作区，只能写 `outputs/`，没有 `data/system`，访问不到 ollama 和 speaches。但它和 DeepTutor 在同一个网络里，所以登录必须一直开着。
 - **端口**：只发布 `127.0.0.1:3782`，tailnet 访问走 `tailscale serve` 的 HTTPS。Docker 发布的端口会绕过 ufw，不要把它改成所有网卡。
-- **账号**：只保留你一个账号。partner（IM 机器人）的回合会用 owner 的 Claude 订阅和 Codex 登录，不要开放给别人。
+- **账号**：只保留你一个账号。partner（IM 机器人）只有在你本人聊天时才能用 Claude 订阅，别人发起的回合会被拒绝；但它生图用的是 owner 的 Codex 登录，所以不要把 partner 开放给别人。
 - `auth.json` 的 `cookie_secure` 保持默认的 false：前端和 API 同源，SameSite=Lax 就够了；设成 true 反而会把 cookie 改成 SameSite=None。
 
 ## 已知限制
