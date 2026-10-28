@@ -219,3 +219,24 @@ def test_reading_options_does_not_create_a_catalog_file(as_user, monkeypatch, no
         catalog_path = personal_models.owner_catalog_service().path
         assert model_access.redacted_model_access()["llm"] == []
         assert not catalog_path.exists()
+
+
+def test_a_users_own_catalog_never_surfaces_the_claude_subscription(
+    as_user, monkeypatch, no_grants
+):
+    """Owner-bound by binding, yet never "personal": the CLI login belongs to
+    the deployment owner, not to whichever account wrote the profile."""
+    monkeypatch.setattr(model_access, "admin_catalog", lambda: _admin_catalog([]))
+    claude = {
+        "id": "llm-claude",
+        "name": "Claude",
+        "binding": "claude_agent_sdk",
+        "owner_bound": True,
+        "models": [{"id": "m-sonnet", "name": "Sonnet", "model": "claude-sonnet-5-5"}],
+    }
+    with as_user("u_alice"):
+        _write_catalog(
+            personal_models.owner_catalog_service().path,
+            [claude, _codex_profile("m-sol", "gpt-5.6-sol")],
+        )
+        assert [row["model_id"] for row in personal_models.personal_llm_rows()] == ["m-sol"]

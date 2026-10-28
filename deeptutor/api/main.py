@@ -17,7 +17,12 @@ from deeptutor.services.config import (
 )
 from deeptutor.services.config.origins import normalize_origins
 from deeptutor.services.path_service import get_path_service
+from deeptutor.utils.secret_files import hold_env_secret
 
+# Only the Claude CLI that the claude_agent_sdk provider starts gets the
+# subscription token; MCP servers, subagent CLIs, installers and every other
+# child process of the server no longer inherit it.
+hold_env_secret("CLAUDE_CODE_OAUTH_TOKEN")
 ensure_runtime_settings_files()
 export_runtime_settings_to_env(overwrite=True)
 configure_logging()

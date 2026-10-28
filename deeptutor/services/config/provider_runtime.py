@@ -526,6 +526,15 @@ IMAGEGEN_PROVIDERS: dict[str, GenerationProviderSpec] = {
         auth_style=AUTH_API_KEY_HEADER,
         default_model="dall-e-3",
     ),
+    # ChatGPT subscription through the same owner-scoped sign-in as the
+    # ``openai_codex`` LLM. Keyless, and the adapter posts to a fixed endpoint:
+    # ``default_api_base`` is shown for reference and never requested.
+    "openai_codex": GenerationProviderSpec(
+        label="OpenAI Codex",
+        default_api_base="https://chatgpt.com/backend-api/codex",
+        adapter="openai_codex",
+        default_model="gpt-image-2",
+    ),
     "custom": GenerationProviderSpec(
         label="OpenAI Compatible",
         default_api_base="",

@@ -108,3 +108,17 @@ def test_clearing_removes_the_file(tmp_path: Path) -> None:
 
     assert not service.path.exists()
     assert is_empty_draft(service.load())
+
+
+def test_a_claude_subscription_key_never_reaches_the_draft_file(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    catalog = _catalog("sk-ant-pasted")
+    catalog["services"]["llm"]["profiles"][0]["binding"] = "claude_agent_sdk"
+
+    saved = service.save({"catalog": catalog, "extensions": {}})
+
+    assert saved["catalog"]["services"]["llm"]["profiles"][0]["api_key"] == ""
+    assert "sk-ant-pasted" not in service.path.read_text(encoding="utf-8")
+    # Other bindings keep their draft keys.
+    other = service.save({"catalog": _catalog("sk-live"), "extensions": {}})
+    assert other["catalog"]["services"]["llm"]["profiles"][0]["api_key"] == "sk-live"

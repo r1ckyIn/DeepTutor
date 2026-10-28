@@ -35,7 +35,9 @@ from deeptutor.services.subagent import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+# Admin-only as a whole: a subagent CLI runs with the backend's environment,
+# which may hold the owner's CLAUDE_CODE_OAUTH_TOKEN.
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 class ConnectSubagentRequest(BaseModel):

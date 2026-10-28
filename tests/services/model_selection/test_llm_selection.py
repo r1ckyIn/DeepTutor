@@ -126,3 +126,18 @@ def test_llm_selection_to_dict_round_trips_reasoning_effort():
 def test_llm_selection_to_dict_omits_reasoning_effort_when_unset():
     selection = LLMSelection(profile_id="p1", model_id="m1")
     assert "reasoning_effort" not in selection.to_dict()
+
+
+def test_claude_agent_sdk_offers_the_cli_effort_levels():
+    from deeptutor.services.model_selection.reasoning import supported_reasoning_efforts
+
+    for model in ("claude-sonnet-5-5", "claude-haiku-5-5"):
+        assert supported_reasoning_efforts("claude_agent_sdk", model) == [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+        ]
+    # The Anthropic API binding keeps its own family defaults.
+    assert supported_reasoning_efforts("anthropic", "claude-sonnet-5-5") == ["none", "adaptive"]

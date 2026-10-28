@@ -205,6 +205,11 @@ async def probe_provider(
     """
     if binding == "volcengine_speech":
         return {"status": "unavailable", "models": []}
+    if binding == "claude_agent_sdk":
+        # No URL or key to probe: the bundled CLI authenticates itself.
+        from deeptutor.services.llm.provider_core.claude_agent_sdk_provider import inspect_cli
+
+        return await inspect_cli()
     base_url = base_url.strip().rstrip("/")
     try:
         parsed = urlsplit(base_url)

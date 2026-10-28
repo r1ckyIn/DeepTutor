@@ -9,6 +9,23 @@ from pathlib import Path
 SECRET_FILE_MODE = 0o600
 SECRET_DIR_MODE = 0o700
 
+_HELD_ENV_SECRETS: dict[str, str] = {}
+
+
+def hold_env_secret(name: str) -> None:
+    """Take *name* out of the environment so child processes stop inheriting it.
+
+    This process can still read it through :func:`env_secret`.
+    """
+    value = os.environ.pop(name, None)
+    if value:
+        _HELD_ENV_SECRETS[name] = value
+
+
+def env_secret(name: str) -> str:
+    """Return a secret kept by :func:`hold_env_secret`, else the environment's."""
+    return _HELD_ENV_SECRETS.get(name) or os.environ.get(name, "")
+
 
 def ensure_private_directory(path: Path) -> Path:
     """Create *path* and keep it accessible only to its owner when possible."""

@@ -133,6 +133,12 @@ def test_a_codebuddy_profile_is_owner_bound_by_its_binding() -> None:
     assert model_access.is_owner_bound({"binding": "openai", "owner_bound": True}) is True
 
 
+def test_the_claude_subscription_is_owner_bound_by_its_binding() -> None:
+    """Its login is the deployment's, so it must never be grantable."""
+    assert model_access.is_owner_bound({"binding": "claude_agent_sdk"}) is True
+    assert model_access.is_owner_bound({"binding": "claude-agent-sdk"}) is True
+
+
 def test_individual_provider_references_keep_subscription_models_private(tmp_path, monkeypatch):
     catalog = _catalog(owner_bound=False)
     profile = catalog["services"]["llm"]["profiles"][0]

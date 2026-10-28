@@ -32,3 +32,9 @@ def test_unknown_model_still_uses_the_small_fallback() -> None:
 
 def test_explicit_catalog_window_wins_over_the_family_heuristic() -> None:
     assert resolve_effective_context_window(context_window=500_000, model="grok-4.6") == 500_000
+
+
+def test_claude_5_5_models_resolve_to_their_native_1m_window() -> None:
+    """Otherwise the name heuristic guesses 65,536 and the loop snips history early."""
+    for model in ("claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"):
+        assert resolve_effective_context_window(model=model) == 1_000_000

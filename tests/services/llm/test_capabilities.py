@@ -96,6 +96,14 @@ def test_codebuddy_capabilities_use_agent_sdk_mcp_tools() -> None:
     assert supports_vision("codebuddy", "codebuddy/default") is False
 
 
+def test_claude_agent_sdk_capabilities_send_base64_images_to_the_cli() -> None:
+    assert supports_tools("claude_agent_sdk", "claude-sonnet-5-5") is True
+    assert supports_response_format("claude_agent_sdk", "claude-sonnet-5-5") is False
+    assert supports_vision("claude_agent_sdk", "claude-sonnet-5-5") is True
+    assert get_capability("claude_agent_sdk", "vision_url_supported") is False
+    assert has_thinking_tags("claude_agent_sdk", "claude-sonnet-5-5") is False
+
+
 def test_qwen_model_override_enables_vision() -> None:
     assert supports_vision("dashscope", "qwen-vl-plus") is True
     assert supports_vision("openai", "qwen2.5-vl-72b-instruct") is True

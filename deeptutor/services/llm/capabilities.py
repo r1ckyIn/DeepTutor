@@ -103,6 +103,15 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "system_in_messages": True,
         "has_thinking_tags": False,
     },
+    "claude_agent_sdk": {
+        "supports_response_format": False,
+        "supports_streaming": True,
+        "supports_tools": True,
+        "supports_vision": True,
+        "vision_url_supported": False,  # images reach the CLI as base64 blocks
+        "system_in_messages": True,
+        "has_thinking_tags": False,
+    },
     # DeepSeek
     "deepseek": {
         "supports_response_format": False,  # DeepSeek doesn't support strict JSON schema yet
