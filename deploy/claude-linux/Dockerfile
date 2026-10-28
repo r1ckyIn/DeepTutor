@@ -11,7 +11,9 @@ RUN pip install --no-cache-dir "claude-agent-sdk==0.2.174" \
     && python -c "import os, claude_agent_sdk as m; p = os.path.join(os.path.dirname(m.__file__), '_bundled', 'claude'); assert os.access(p, os.X_OK), p"
 
 # Replace rather than merge, so modules deleted in the fork do not linger. Same
-# paths and root ownership as the upstream Dockerfile's COPY of the sources.
+# paths and root ownership as the upstream Dockerfile's COPY of these files;
+# pyproject.toml carries the fork's extras (scripts/install_extras.py reads it).
 RUN rm -rf /app/deeptutor /app/deeptutor_cli
 COPY deeptutor/ /app/deeptutor/
 COPY deeptutor_cli/ /app/deeptutor_cli/
+COPY pyproject.toml /app/pyproject.toml

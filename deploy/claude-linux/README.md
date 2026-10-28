@@ -173,5 +173,6 @@ docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --form
 
 ## 已知限制
 
-- 主机没有 buildx，`docker build` 走 legacy builder，会把整个仓库目录（扣除 `.dockerignore` 排除的部分）发给本机的 dockerd，其中包括 `data/` 下没被排除的子目录，比如 `data/system`。这些文件只在本机内传递，不会进镜像（`Dockerfile` 只 COPY 两个源码目录），但 `data/` 很大时构建会变慢。
+- 主机没有 buildx，`docker build` 走 legacy builder，会把整个仓库目录（扣除 `.dockerignore` 排除的部分）发给本机的 dockerd，其中包括 `data/` 下没被排除的子目录，比如 `data/system`。这些文件只在本机内传递，不会进镜像（`Dockerfile` 只 COPY 两个源码目录和 `pyproject.toml`），但 `data/` 很大时构建会变慢。
+- 前端沿用上游镜像里构建好的版本，fork 在 `web/` 下的改动不会生效。目前只有一处：Claude Agent 在设置页的图标，界面上会显示成默认图标。
 - speaches 固定在 `0.9.0-rc.3`：这是目前最新的带版本号构建，GitHub release 没有标成 prerelease；`latest-cpu` 仍指向 0.8.3。
