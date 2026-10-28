@@ -1,0 +1,19 @@
+{
+  "llm": {
+    "provider": "claude_agent_sdk",
+    "model": "claude-sonnet-5-5"
+  },
+  "embedding": {
+    "provider": "ollama",
+    "model": "qwen3-embedding:0.6b",
+    "base_url": "http://ollama:11434/api/embed",
+    "dimension": 1024
+  },
+  "search": {
+    "provider": "duckduckgo"
+  },
+  "system": {
+    "backend_port": 8001,
+    "frontend_port": 3782
+  }
+}
