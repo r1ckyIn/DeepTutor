@@ -53,7 +53,9 @@ def seed_catalog(catalog: dict) -> None:
 
     # speaches picks Kokoro's language from the voice, so zh and en are two
     # models; switch the active one in Settings > Voice. CPU synthesis of a long
-    # reply can outrun the 60 s default timeout.
+    # reply can outrun the 60 s default timeout. en is active because zh likely
+    # loses its tones: speaches phonemizes with espeak-ng, whose tone marks are
+    # not in Kokoro's vocabulary (its zh voices were trained on misaki).
     kokoro = {"model": KOKORO, "response_format": "mp3", "request_timeout": "300"}
     _upsert(
         services["tts"],
@@ -68,7 +70,7 @@ def seed_catalog(catalog: dict) -> None:
                 {"id": "tts-model-kokoro-en", "name": "Kokoro en", "voice": "af_heart", **kokoro},
             ],
         },
-        "tts-model-kokoro-zh",
+        "tts-model-kokoro-en",
     )
     _upsert(
         services["stt"],

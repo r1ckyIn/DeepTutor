@@ -51,7 +51,7 @@ def test_catalog_seed_is_idempotent(tmp_path):
         ]
 
     tts = first["services"]["tts"]
-    assert tts["active_model_id"] == "tts-model-kokoro-zh"
+    assert tts["active_model_id"] == "tts-model-kokoro-en"
     assert [m["voice"] for m in tts["profiles"][0]["models"]] == ["zf_xiaobei", "af_heart"]
     assert first["services"]["stt"]["profiles"][0]["base_url"] == seed.SPEACHES_URL
     assert resolve_imagegen_runtime_config(first, service=service).adapter == "openai_codex"

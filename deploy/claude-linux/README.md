@@ -94,7 +94,7 @@ token 的去向：
 3. `python -m deeptutor_cli config apply`，用的是 `setup.json`：LLM 用 `claude_agent_sdk` 并设为 active；embedding 用 Ollama，地址 `http://ollama:11434/api/embed`，1024 维；搜索用 DuckDuckGo；端口固定为 8001/3782。
 4. `catalog.py` 通过 DeepTutor 的设置服务，补上 `config apply` 写不了的部分：
    - Claude 模型 `claude-sonnet-5-5`（active）、`claude-opus-5-5`、`claude-haiku-5-5`、`claude-fable-5-1`。每个都写 1M 上下文（来源 manual），开 tools 和 vision、关 json_output，推理档位 low 到 max。
-   - 朗读：binding 用「OpenAI Compatible」（`custom`），地址 `http://speaches:8000/v1`。两个模型：「Kokoro zh」（音色 `zf_xiaobei`，active）和「Kokoro en」（音色 `af_heart`）。speaches 按音色决定 Kokoro 的语言，中英文在「设置 → 语音」里切换。CPU 上合成长回复较慢，超时设为 300 秒。
+   - 朗读：binding 用「OpenAI Compatible」（`custom`），地址 `http://speaches:8000/v1`。两个模型：「Kokoro en」（音色 `af_heart`，active）和「Kokoro zh」（音色 `zf_xiaobei`）。speaches 按音色决定 Kokoro 的语言，中英文在「设置 → 语音」里切换。CPU 上合成长回复较慢，超时设为 300 秒。默认用英文，是因为「Kokoro zh」大概率没有声调：speaches 用 espeak-ng 给中文注音，espeak 标声调的符号不在 Kokoro 的词表里，会被丢掉（Kokoro 的中文音色是按 misaki 的注音训练的）。中文要先按第 8 步试听。
    - 听写：同一个地址，模型 `Systran/faster-whisper-small`，语言留空表示自动识别，适合中英混说。
    - 生图：Codex 适配器，binding `openai_codex`，模型 `gpt-image-2`。要等第 7 步登录 Codex 之后才能用。
    - `auth.json` 打开登录；`system.json` 设 `sandbox_allow_subprocess=false`，代码只在 runner 里执行。这两个文件只在启动时读取，有改动时脚本会自动 `docker restart deeptutor`。
@@ -134,7 +134,7 @@ docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --form
 
 然后在网页里发一条消息，确认回复是流式出来的，这同时验证了订阅可用。不要用 `doctor --online` 来验证：登录开着时，`docker exec` 起的 CLI 进程没有用户身份，owner 守卫会直接拒绝，不发请求也不计费，doctor 报 Provider response FAIL 并以 1 退出，看上去像 token 坏了，其实不是。要单独测一次模型，就用 owner 账号在「设置」里对 Claude 模型点测试，测试会带上当前登录的用户。
 
-最后在「设置 → 语音」里各测一次朗读和听写。
+最后在「设置 → 语音」里各测一次朗读和听写，再把朗读切到「Kokoro zh」念一句中文，听有没有声调。没有声调的话就别用它，另加一个 Kokoro-FastAPI 服务专做朗读（它用 misaki 给中文注音；固定版本号，只接 `models` 网络），听写继续用 speaches。
 
 ## 日常维护
 
