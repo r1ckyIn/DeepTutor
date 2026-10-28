@@ -132,7 +132,9 @@ docker exec -u deeptutor deeptutor sh -c 'command -v claude || echo "claude: not
 docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --format json
 ```
 
-然后在网页里发一条消息，确认回复是流式出来的；在「设置 → 语音」里各测一次朗读和听写。`doctor --online` 会真的发一次模型请求，消耗订阅额度，需要时再跑。
+然后在网页里发一条消息，确认回复是流式出来的，这同时验证了订阅可用。不要用 `doctor --online` 来验证：登录开着时，`docker exec` 起的 CLI 进程没有用户身份，owner 守卫会直接拒绝，不发请求也不计费，doctor 报 Provider response FAIL 并以 1 退出，看上去像 token 坏了，其实不是。要单独测一次模型，就用 owner 账号在「设置」里对 Claude 模型点测试，测试会带上当前登录的用户。
+
+最后在「设置 → 语音」里各测一次朗读和听写。
 
 ## 日常维护
 
@@ -165,7 +167,8 @@ docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --form
   - 不要设置 `DEEPTUTOR_EXTRAS`、`DEEPTUTOR_APT_PACKAGES`，不要装 `math-animator` extra（它执行模型生成的代码时不经过沙箱）；
   - 镜像里不装任何 agent CLI，`claude` 不在 PATH 上，只有 SDK 内置的那一份；
   - 子代理接口 `/api/subagents` 只对 admin 开放（fork 的改动，见 `deeptutor/api/routers/subagents.py`）；
-  - 模型生成的代码只在 runner 里执行。seed 把 `sandbox_allow_subprocess` 设成了 false，runner 挂掉时也不会退回主容器里执行。
+  - 模型生成的代码只在 runner 里执行。seed 把 `sandbox_allow_subprocess` 设成了 false，runner 挂掉时也不会退回主容器里执行；
+  - 管理界面里有三处会在这个容器里、以同一个 uid 跑第三方代码，它们同样读得到 token：stdio 方式的 MCP 服务器、CLI 应用安装（会执行包里的 `setup.py`）、解析引擎的一键安装（`pip install`）。MCP 尽量用 HTTP/SSE 方式接入，CLI 应用和解析引擎只装信得过的。
 - **runner**：只读挂载工作区，只能写 `outputs/`，没有 `data/system`，访问不到 ollama 和 speaches。但它和 DeepTutor 在同一个网络里，所以登录必须一直开着。
 - **端口**：只发布 `127.0.0.1:3782`，tailnet 访问走 `tailscale serve` 的 HTTPS。Docker 发布的端口会绕过 ufw，不要把它改成所有网卡。
 - **账号**：只保留你一个账号。partner（IM 机器人）只有在你本人聊天时才能用 Claude 订阅，别人发起的回合会被拒绝；但它生图用的是 owner 的 Codex 登录，所以不要把 partner 开放给别人。
