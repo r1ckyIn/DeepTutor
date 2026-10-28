@@ -162,6 +162,7 @@ async def test_streams_text_and_thinking_deltas_and_maps_usage() -> None:
                 "output_tokens": 5,
                 "cache_read_input_tokens": 100,
                 "cache_creation_input_tokens": 20,
+                "output_tokens_details": {"thinking_tokens": 3},
                 "service_tier": "standard",
             },
         ),
@@ -192,6 +193,7 @@ async def test_streams_text_and_thinking_deltas_and_maps_usage() -> None:
         "total_tokens": 135,
         "cache_read_input_tokens": 100,
         "cache_creation_input_tokens": 20,
+        "reasoning_tokens": 3,
     }
     tracker = UsageTracker()
     record_streamed_usage(tracker, response.usage)

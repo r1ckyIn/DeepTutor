@@ -33,7 +33,7 @@ from deeptutor.services.llm.provider_core.base import (
     LLMResponse,
     ToolCallRequest,
 )
-from deeptutor.services.llm.usage_frame import usage_breakdown
+from deeptutor.services.llm.usage_frame import usage_breakdown, usage_mapping
 from deeptutor.utils.secret_files import ensure_private_directory
 
 CLAUDE_AGENT_SDK_MODELS = (
@@ -486,7 +486,10 @@ async def _consume(
                     )
         elif isinstance(message, sdk.ResultMessage):
             # Return here: the turn is over, and the SDK may raise after an error result.
-            usage = usage_breakdown(message.usage)
+            raw = message.usage or {}
+            # The CLI counts reasoning as output_tokens_details.thinking_tokens.
+            thinking_tokens = usage_mapping(raw.get("output_tokens_details")).get("thinking_tokens")
+            usage = usage_breakdown({"reasoning_tokens": thinking_tokens, **raw})
             reasoning = "\n".join(thinking).strip() or None
             if calls:
                 # max_turns=1 ends a tool-using turn with error_max_turns; every
