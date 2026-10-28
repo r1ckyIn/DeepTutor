@@ -284,8 +284,15 @@ async def test_options_isolate_the_cli(monkeypatch, tmp_path) -> None:
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_UNIX_SOCKET",
+        "CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR",
         "CLAUDE_CODE_USE_BEDROCK",
         "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+        "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+        "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
+        "CLAUDE_CODE_USE_MANTLE",
+        "CLAUDE_CODE_USE_GATEWAY",
     ):
         assert opts.env[blanked] == ""
     assert opts.env["ENABLE_TOOL_SEARCH"] == "false"
@@ -297,6 +304,24 @@ async def test_options_isolate_the_cli(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("DEEPTUTOR_CLAUDE_SDK_CLI_PATH", "/opt/claude/bin/claude")
     await ClaudeAgentSDKProvider().chat([{"role": "user", "content": "q"}])
     assert options().cli_path == "/opt/claude/bin/claude"
+
+
+@pytest.mark.asyncio
+async def test_a_home_that_is_not_our_private_directory_is_refused(monkeypatch, tmp_path) -> None:
+    theirs = tmp_path / "theirs"
+    theirs.mkdir()
+    (tmp_path / "link").symlink_to(theirs)
+    monkeypatch.setenv("DEEPTUTOR_CLAUDE_SDK_HOME", str(tmp_path / "link"))
+    linked = await ClaudeAgentSDKProvider().chat([{"role": "user", "content": "q"}])
+
+    monkeypatch.setenv("DEEPTUTOR_CLAUDE_SDK_HOME", str(theirs))
+    monkeypatch.setattr(provider_module.os, "getuid", lambda: theirs.stat().st_uid + 1)
+    foreign = await ClaudeAgentSDKProvider().chat([{"role": "user", "content": "q"}])
+
+    for response in (linked, foreign):
+        assert response.finish_reason == "error"
+        assert "must be a private directory" in response.content
+    assert not FakeClient.instances
 
 
 @pytest.mark.parametrize(

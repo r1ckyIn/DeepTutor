@@ -22,6 +22,7 @@ from itertools import groupby
 import logging
 import os
 from pathlib import Path
+import stat
 import threading
 import time
 from types import ModuleType
@@ -268,7 +269,14 @@ def _options(
 ) -> Any:
     """Options that confine the CLI to one turn without its own tools or settings."""
     home = Path(os.environ.get("DEEPTUTOR_CLAUDE_SDK_HOME") or "/tmp/deeptutor-claude")
-    for path in (home, home / ".claude", home / "cwd"):
+    ensure_private_directory(home)
+    # /tmp is shared: never hand the CLI a home that another user made first.
+    info = home.lstat()
+    if os.name != "nt" and (
+        not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077
+    ):
+        raise RuntimeError(f"{home} must be a private directory owned by this user")
+    for path in (home / ".claude", home / "cwd"):
         ensure_private_directory(path)
     server, allowed = _tool_server(sdk, tools)
     return sdk.ClaudeAgentOptions(
@@ -302,8 +310,16 @@ def _options(
             "ANTHROPIC_API_KEY": "",
             "ANTHROPIC_AUTH_TOKEN": "",
             "ANTHROPIC_BASE_URL": "",
+            "ANTHROPIC_UNIX_SOCKET": "",
+            "CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR": "",
+            # Every backend switch the bundled CLI (2.1.x) knows.
             "CLAUDE_CODE_USE_BEDROCK": "",
             "CLAUDE_CODE_USE_VERTEX": "",
+            "CLAUDE_CODE_USE_FOUNDRY": "",
+            "CLAUDE_CODE_USE_ANTHROPIC_AWS": "",
+            "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD": "",
+            "CLAUDE_CODE_USE_MANTLE": "",
+            "CLAUDE_CODE_USE_GATEWAY": "",
             "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
             # Each call is a fresh session that is never resumed.
             "CLAUDE_CODE_SKIP_PROMPT_HISTORY": "1",
