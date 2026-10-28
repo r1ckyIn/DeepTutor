@@ -157,6 +157,21 @@ def test_github_copilot_is_oauth_backed() -> None:
     assert spec.env_key == ""
 
 
+def test_claude_agent_sdk_is_oauth_backed_and_not_the_claude_alias() -> None:
+    spec = find_by_name("claude-agent-sdk")
+
+    assert spec is not None
+    assert spec.name == "claude_agent_sdk"
+    assert spec.backend == "claude_agent_sdk"
+    assert spec.auth_mode == "oauth"
+    assert spec.env_key == ""
+    assert spec.default_api_base == ""
+    assert spec.display_name == "Claude Agent (subscription)"
+    assert "Claude Code" not in spec.label
+    # "claude" stays the Anthropic API alias.
+    assert find_by_name("claude").name == "anthropic"
+
+
 def test_orcarouter_is_not_a_builtin_provider() -> None:
     assert find_by_name("orcarouter") is None
     assert find_by_name("orca_router") is None
