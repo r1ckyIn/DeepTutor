@@ -41,7 +41,7 @@ def test_catalog_seed_is_idempotent(tmp_path):
     for model in profile["models"]:
         assert model["context_window"] == 1_000_000
         assert model["context_window_source"] == "manual"
-        assert model["capabilities"] == {"tools": True, "vision": False, "json_output": False}
+        assert model["capabilities"] == {"tools": True, "vision": True, "json_output": False}
         assert model["codex_supported_reasoning_levels"] == [
             "low",
             "medium",

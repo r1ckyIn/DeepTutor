@@ -42,7 +42,8 @@ def seed_catalog(catalog: dict) -> None:
             "model": model,
             "context_window": 1_000_000,
             "context_window_source": "manual",
-            "capabilities": {"tools": True, "vision": False, "json_output": False},
+            # Vision passed the live base64 image probe on the subscription.
+            "capabilities": {"tools": True, "vision": True, "json_output": False},
             "codex_supported_reasoning_levels": ["low", "medium", "high", "xhigh", "max"],
         }
         for model, name in CLAUDE_MODELS.items()

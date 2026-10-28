@@ -93,7 +93,7 @@ token 的去向：
 2. `ollama pull qwen3-embedding:0.6b`（约 640 MB）；让 speaches 下载 `speaches-ai/Kokoro-82M-v1.0-ONNX`（约 350 MB）和 `Systran/faster-whisper-small`（约 490 MB）。speaches 收到请求时不会自动下载模型，所以要先下好，模型存在卷里。
 3. `python -m deeptutor_cli config apply`，用的是 `setup.json`：LLM 用 `claude_agent_sdk` 并设为 active；embedding 用 Ollama，地址 `http://ollama:11434/api/embed`，1024 维；搜索用 DuckDuckGo；端口固定为 8001/3782。
 4. `catalog.py` 通过 DeepTutor 的设置服务，补上 `config apply` 写不了的部分：
-   - Claude 模型 `claude-sonnet-5-5`（active）、`claude-opus-5-5`、`claude-haiku-5-5`、`claude-fable-5-1`。每个都写 1M 上下文（来源 manual），开 tools、关 vision 和 json_output，推理档位 low 到 max。
+   - Claude 模型 `claude-sonnet-5-5`（active）、`claude-opus-5-5`、`claude-haiku-5-5`、`claude-fable-5-1`。每个都写 1M 上下文（来源 manual），开 tools 和 vision、关 json_output，推理档位 low 到 max。
    - 朗读：binding 用「OpenAI Compatible」（`custom`），地址 `http://speaches:8000/v1`。两个模型：「Kokoro zh」（音色 `zf_xiaobei`，active）和「Kokoro en」（音色 `af_heart`）。speaches 按音色决定 Kokoro 的语言，中英文在「设置 → 语音」里切换。CPU 上合成长回复较慢，超时设为 300 秒。
    - 听写：同一个地址，模型 `Systran/faster-whisper-small`，语言留空表示自动识别，适合中英混说。
    - 生图：Codex 适配器，binding `openai_codex`，模型 `gpt-image-2`。要等第 7 步登录 Codex 之后才能用。
