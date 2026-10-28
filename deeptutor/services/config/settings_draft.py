@@ -35,7 +35,11 @@ from typing import Any
 
 from deeptutor.services.path_service import get_path_service
 
-from .model_catalog import redact_catalog_secrets, restore_catalog_secrets
+from .model_catalog import (
+    drop_unstorable_credentials,
+    redact_catalog_secrets,
+    restore_catalog_secrets,
+)
 
 DRAFT_VERSION = 1
 
@@ -90,6 +94,10 @@ class SettingsDraftService:
                 normalized["extensions"] = {}
             normalized["version"] = DRAFT_VERSION
             normalized["updated_at"] = _now()
+            if isinstance(normalized.get("catalog"), dict):
+                # A key typed into the form must not reach the draft file either.
+                normalized["catalog"] = deepcopy(normalized["catalog"])
+                drop_unstorable_credentials(normalized["catalog"])
             self.path.parent.mkdir(parents=True, exist_ok=True)
             fd, temp_name = tempfile.mkstemp(
                 prefix=f".{self.path.name}.", suffix=".tmp", dir=self.path.parent

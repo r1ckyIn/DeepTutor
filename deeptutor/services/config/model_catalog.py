@@ -132,6 +132,30 @@ def restore_catalog_secrets(
     return restored
 
 
+# Bindings that must never store a credential: the Claude subscription CLI
+# authenticates itself from the server environment, never from DeepTutor.
+# Matched by binding, not is_oauth — CodeBuddy is OAuth yet takes an API key.
+_NO_STORED_CREDENTIAL_BINDINGS = frozenset({"claude_agent_sdk"})
+
+
+def drop_unstorable_credentials(catalog: dict[str, Any]) -> bool:
+    """Blank ``api_key``/``extra_headers`` on connections and profiles that store none."""
+    entries = list(catalog.get("connections") or [])
+    for service in (catalog.get("services") or {}).values():
+        if isinstance(service, dict):
+            entries.extend(service.get("profiles") or [])
+    changed = False
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        binding = str(entry.get("binding") or entry.get("provider") or "").strip().lower()
+        if binding.replace("-", "_") not in _NO_STORED_CREDENTIAL_BINDINGS:
+            continue
+        changed = changed or bool(entry.get("api_key") or entry.get("extra_headers"))
+        entry["api_key"], entry["extra_headers"] = "", {}
+    return changed
+
+
 def _service_shell() -> dict[str, Any]:
     return {
         "active_profile_id": None,
@@ -597,6 +621,9 @@ class ModelCatalogService:
             changed = True
         if self._drop_retired_task_overrides(catalog):
             changed = True
+        # Last, after connections were mirrored into the profiles above.
+        if drop_unstorable_credentials(catalog):
+            changed = True
         return changed
 
     def get_active_profile(
@@ -671,6 +698,7 @@ __all__ = [
     "MODEL_CAPABILITY_KEYS",
     "SERVICE_NAMES",
     "ModelCatalogService",
+    "drop_unstorable_credentials",
     "get_model_catalog_service",
     "redact_catalog_secrets",
     "restore_catalog_secrets",

@@ -1529,6 +1529,20 @@ async def test_fetch_models_allows_codebuddy_without_base_url(
 
 
 @pytest.mark.asyncio
+async def test_fetch_models_lists_claude_agent_sdk_without_base_url_or_key() -> None:
+    response = await settings_router.fetch_models_from_provider(
+        settings_router.FetchModelsPayload(binding="claude_agent_sdk")
+    )
+
+    assert [model["id"] for model in response["models"]] == [
+        "claude-sonnet-5-5",
+        "claude-opus-5-5",
+        "claude-haiku-5-5",
+        "claude-fable-5-1",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_codebuddy_auth_routes_use_admin_scoped_service(monkeypatch) -> None:
     class FakeService:
         async def status(self):

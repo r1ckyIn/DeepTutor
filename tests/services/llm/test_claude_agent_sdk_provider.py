@@ -548,3 +548,48 @@ async def test_partner_turns_need_the_owner_as_the_human(
     if not allowed:
         assert "partner conversations" in response.content
         assert not FakeClient.instances
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("account", "status"),
+    [
+        ({"tokenSource": "CLAUDE_CODE_OAUTH_TOKEN", "apiProvider": "firstParty"}, "connected"),
+        (
+            {"subscriptionType": "Claude Max", "email": "owner@example.com"},
+            "connected",
+        ),
+        ({"tokenSource": "none", "apiProvider": "firstParty"}, "auth_error"),
+        (
+            {"tokenSource": "CLAUDE_CODE_OAUTH_TOKEN", "apiKeySource": "ANTHROPIC_API_KEY"},
+            "auth_error",
+        ),
+        ({"apiProvider": "bedrock"}, "auth_error"),
+    ],
+)
+async def test_inspect_cli_reports_the_login_without_account_details(account, status) -> None:
+    FakeClient.server_info = {"account": account, "models": [{"value": "sonnet"}]}
+
+    result = await provider_module.inspect_cli()
+
+    assert result["status"] == status
+    assert [model["id"] for model in result["models"]] == list(
+        provider_module.CLAUDE_AGENT_SDK_MODELS
+    )
+    # Discovery is persisted: no e-mail, plan or other account fields.
+    assert "example.com" not in str(result) and "Max" not in str(result)
+    client = FakeClient.instances[-1]
+    assert client.disconnected
+    assert client.options.tools == [] and client.options.env["ANTHROPIC_API_KEY"] == ""
+
+
+@pytest.mark.asyncio
+async def test_inspect_cli_maps_startup_failures_and_timeouts(monkeypatch) -> None:
+    FakeClient.connect_error = sdk.ProcessError("Command failed", exit_code=-6)
+    assert (await provider_module.inspect_cli())["status"] == "unreachable"
+
+    async def slow_connect(self) -> None:
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(FakeClient, "connect", slow_connect)
+    assert (await provider_module.inspect_cli(timeout_s=0.05))["status"] == "timeout"
