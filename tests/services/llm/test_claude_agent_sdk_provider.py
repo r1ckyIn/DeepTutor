@@ -8,6 +8,7 @@ part that would spawn the CLI — is replaced.
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 import stat
 import threading
@@ -26,6 +27,7 @@ from deeptutor.services.llm.provider_factory import build_isolated_provider
 
 sdk = pytest.importorskip("claude_agent_sdk")
 ClaudeAgentSDKProvider = provider_module.ClaudeAgentSDKProvider
+RealClient = sdk.ClaudeSDKClient  # kept before the autouse fixture swaps it out
 
 HANG = "hang"
 TRICKLE = "trickle"
@@ -494,6 +496,68 @@ async def test_cli_slots_cap_concurrency_and_release_on_every_path(monkeypatch) 
     assert busy.finish_reason == "error"
     assert "busy" in busy.content and LLMProvider._is_transient_error(busy.content)
     assert len(FakeClient.instances) == 1 and FakeClient.instances[0].disconnected
+    assert slots.acquire(blocking=False)
+
+
+class SlowCloseTransport(sdk.Transport):
+    """The CLI side of one turn that never ends; close() takes a while.
+
+    The slow close stands for the SDK's subprocess close, which gives the CLI a
+    grace period before its SIGTERM/SIGKILL.
+    """
+
+    def __init__(self) -> None:
+        self.inbox: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+        self.turn_sent = asyncio.Event()
+        self.closing = asyncio.Event()
+        self.closed = False
+
+    async def connect(self) -> None:
+        pass
+
+    def is_ready(self) -> bool:
+        return True
+
+    async def end_input(self) -> None:
+        pass
+
+    async def write(self, data: str) -> None:
+        message = json.loads(data)
+        if message["type"] == "control_request":  # initialize
+            response = {"subtype": "success", "request_id": message["request_id"], "response": {}}
+            self.inbox.put_nowait({"type": "control_response", "response": response})
+        elif message["type"] == "user":
+            self.turn_sent.set()
+
+    async def read_messages(self):
+        while (message := await self.inbox.get()) is not None:
+            yield message
+
+    async def close(self) -> None:
+        self.closing.set()
+        await asyncio.sleep(0.2)
+        self.closed = True
+        self.inbox.put_nowait(None)
+
+
+@pytest.mark.asyncio
+async def test_a_second_cancel_still_waits_for_the_cli_to_close(monkeypatch) -> None:
+    transport = SlowCloseTransport()
+    monkeypatch.setattr(
+        sdk, "ClaudeSDKClient", lambda options: RealClient(options=options, transport=transport)
+    )
+    slots = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(provider_module, "_CLI_SLOTS", slots)
+    task = asyncio.create_task(ClaudeAgentSDKProvider().chat([{"role": "user", "content": "q"}]))
+    await asyncio.wait_for(transport.turn_sent.wait(), 5)
+
+    task.cancel()
+    await asyncio.wait_for(transport.closing.wait(), 5)
+    task.cancel()  # a stop pressed twice
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert transport.closed
     assert slots.acquire(blocking=False)
 
 

@@ -95,6 +95,27 @@ async def _cli_slot() -> AsyncIterator[None]:
         _CLI_SLOTS.release()
 
 
+async def _disconnect(client: Any) -> None:
+    """Disconnect, which stops the CLI, and wait for it even through a second cancel.
+
+    The SDK shields its close only from anyio cancellation: another plain
+    task.cancel() (a stop pressed twice) would cut off its terminate/kill and
+    leave the CLI running outside the slot cap. So the close runs as its own
+    task, and a cancel that arrives meanwhile is re-raised once it is done.
+    """
+    closing = asyncio.ensure_future(client.disconnect())
+    cancelled = False
+    while not closing.done():
+        try:
+            await asyncio.wait([closing])
+        except asyncio.CancelledError:
+            cancelled = True
+    with suppress(Exception):
+        closing.result()
+    if cancelled:
+        raise asyncio.CancelledError
+
+
 class ClaudeAgentSDKProvider(LLMProvider):
     """Owner-only provider that drives the Claude Agent SDK one turn at a time."""
 
@@ -166,8 +187,7 @@ class ClaudeAgentSDKProvider(LLMProvider):
                         return await _consume(sdk, stream, on_content_delta, on_reasoning_delta)
                 finally:
                     # Terminates the CLI on every path, including the watchdogs.
-                    with suppress(Exception):
-                        await client.disconnect()
+                    await _disconnect(client)
         except TimeoutError:
             return LLMResponse(
                 content=_error_text(f"no result within {total_s:g} s; the CLI was stopped"),
@@ -494,8 +514,7 @@ async def inspect_cli(timeout_s: float = 25) -> dict[str, Any]:
                 await client.connect()
                 info = await client.get_server_info() or {}
             finally:
-                with suppress(Exception):
-                    await client.disconnect()
+                await _disconnect(client)
     except TimeoutError:
         return {"status": "timeout", "models": models}
     except Exception as exc:
