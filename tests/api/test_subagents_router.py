@@ -334,3 +334,10 @@ def test_settings_put_merges_per_field_and_backend(client):
     body = r4.json()
     assert body["consult_budget"] == 7
     assert body["backends"]["claude_code"]["model"] == "opus"
+
+
+def test_every_route_is_admin_gated() -> None:
+    """On the router itself, so a route added later inherits the gate: a
+    subagent CLI runs with the backend environment, owner credentials included."""
+    gated = {dependency.dependency for dependency in subagents_module.router.dependencies}
+    assert subagents_module.require_admin in gated
