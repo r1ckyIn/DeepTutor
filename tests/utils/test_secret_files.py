@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 import stat
+import subprocess
 import sys
 
 import pytest
 
+from deeptutor.utils import secret_files
 from deeptutor.utils.secret_files import (
     SECRET_FILE_MODE,
     write_secret_text,
@@ -77,3 +79,23 @@ def test_no_partial_file_when_writing_fails(tmp_path, monkeypatch):
     with pytest.raises(OSError):
         write_secret_text(target, "token-value")
     assert not target.exists()
+
+
+def test_held_env_secret_stays_out_of_child_processes(monkeypatch):
+    monkeypatch.setattr(secret_files, "_HELD_ENV_SECRETS", {})
+    monkeypatch.setenv("DEEPTUTOR_TEST_HELD_SECRET", "token-value")
+
+    secret_files.hold_env_secret("DEEPTUTOR_TEST_HELD_SECRET")
+
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os; print(os.environ.get('DEEPTUTOR_TEST_HELD_SECRET', ''))",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert child.stdout.strip() == ""
+    assert secret_files.env_secret("DEEPTUTOR_TEST_HELD_SECRET") == "token-value"

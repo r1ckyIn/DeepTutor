@@ -162,8 +162,8 @@ docker exec -u deeptutor -w /app deeptutor python -m deeptutor_cli doctor --form
 
 ## 安全说明
 
-- **token**：只在 `deeptutor` 容器的环境变量里，以及 Docker 保存的容器配置里。DeepTutor 的代码不读它，SDK 把环境变量原样传给内置的 Claude CLI。`ANTHROPIC_API_KEY` 和 `ANTHROPIC_AUTH_TOKEN` 被置空，因为它们在 CLI 里的优先级比订阅 token 高，一旦有值，计费就会变成按 API 收费。
-- **信任边界是整个 `deeptutor` 容器**。同容器、同 uid 的进程都能从 `/proc/<pid>/environ` 读到 token，前端的 Node 进程也继承了它。所以：
+- **token**：只在 `deeptutor` 容器的环境变量里，以及 Docker 保存的容器配置里。后端启动时把它从自己的环境变量里收走（`deeptutor/api/main.py`），只在启动内置的 Claude CLI 时原样交给它，DeepTutor 不存储、不外发。所以 MCP 服务器、子代理 CLI、安装器等其他子进程都继承不到它。CLI 也不写会话记录（`--no-session-persistence`）。`ANTHROPIC_API_KEY` 和 `ANTHROPIC_AUTH_TOKEN` 被置空，因为它们在 CLI 里的优先级比订阅 token 高，一旦有值，计费就会变成按 API 收费。
+- **信任边界仍是整个 `deeptutor` 容器**。子进程虽然继承不到 token，但同容器、同 uid 的代码仍能从后端进程的 `/proc/<pid>/environ`（启动时的环境）读到它，前端的 Node 进程也继承了它。所以：
   - 不要设置 `DEEPTUTOR_EXTRAS`、`DEEPTUTOR_APT_PACKAGES`，不要装 `math-animator` extra（它执行模型生成的代码时不经过沙箱）；
   - 镜像里不装任何 agent CLI，`claude` 不在 PATH 上，只有 SDK 内置的那一份；
   - 子代理接口 `/api/subagents` 只对 admin 开放（fork 的改动，见 `deeptutor/api/routers/subagents.py`）；

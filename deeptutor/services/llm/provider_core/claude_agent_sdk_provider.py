@@ -2,10 +2,11 @@
 
 Every ``chat()`` / ``chat_stream()`` runs one stateless turn in a fresh,
 unmodified Claude Code CLI process (bundled with ``claude-agent-sdk``).
-DeepTutor never handles a Claude credential: the CLI authenticates itself from
-the ``CLAUDE_CODE_OAUTH_TOKEN`` the deployment puts in the server environment,
-which the subprocess inherits unchanged. There is deliberately no login, no
-token handling and no HTTP fallback here.
+DeepTutor never stores or sends a Claude credential: the CLI authenticates
+itself with the ``CLAUDE_CODE_OAUTH_TOKEN`` the deployment puts in the server
+environment. The server takes it out of its own environment at startup and
+passes it, unchanged, to this CLI alone. There is deliberately no login, no
+token storage and no HTTP fallback here.
 
 DeepTutor's tools reach the model through an in-process SDK MCP server whose
 handlers only acknowledge the call. With ``max_turns=1`` the CLI stops before
@@ -34,7 +35,7 @@ from deeptutor.services.llm.provider_core.base import (
     ToolCallRequest,
 )
 from deeptutor.services.llm.usage_frame import usage_breakdown, usage_mapping
-from deeptutor.utils.secret_files import ensure_private_directory
+from deeptutor.utils.secret_files import ensure_private_directory, env_secret
 
 CLAUDE_AGENT_SDK_MODELS = (
     "claude-sonnet-5-5",
@@ -301,12 +302,16 @@ def _options(
         or str(
             Path(sdk.__file__).parent / "_bundled" / ("claude.exe" if os.name == "nt" else "claude")
         ),
-        # Merged over the inherited environment, which still carries the
-        # deployment's CLAUDE_CODE_OAUTH_TOKEN. Blanks keep an API key, another
-        # endpoint or a cloud backend from replacing the subscription.
+        # The CLI writes no session transcript (prompts, images) to disk.
+        extra_args={"no-session-persistence": None},
+        # Merged over the inherited environment. The server holds the token
+        # back from its children (api/main.py), so it is passed here. Blanks
+        # keep an API key, another endpoint or a cloud backend from replacing
+        # the subscription.
         env={
             "HOME": str(home),
             "CLAUDE_CONFIG_DIR": str(home / ".claude"),
+            "CLAUDE_CODE_OAUTH_TOKEN": env_secret("CLAUDE_CODE_OAUTH_TOKEN"),
             "ANTHROPIC_API_KEY": "",
             "ANTHROPIC_AUTH_TOKEN": "",
             "ANTHROPIC_BASE_URL": "",

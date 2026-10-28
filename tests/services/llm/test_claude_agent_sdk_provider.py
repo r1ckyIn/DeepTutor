@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 import stat
 import threading
@@ -24,6 +25,7 @@ from deeptutor.services.llm.config import LLMConfig
 from deeptutor.services.llm.provider_core import claude_agent_sdk_provider as provider_module
 from deeptutor.services.llm.provider_core.base import LLMProvider
 from deeptutor.services.llm.provider_factory import build_isolated_provider
+from deeptutor.utils import secret_files
 
 sdk = pytest.importorskip("claude_agent_sdk")
 ClaudeAgentSDKProvider = provider_module.ClaudeAgentSDKProvider
@@ -79,6 +81,8 @@ def fake_cli(monkeypatch, tmp_path):
     monkeypatch.setattr(sdk, "ClaudeSDKClient", FakeClient)
     monkeypatch.setenv("DEEPTUTOR_CLAUDE_SDK_HOME", str(tmp_path / "claude-home"))
     monkeypatch.delenv("DEEPTUTOR_CLAUDE_SDK_CLI_PATH", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    monkeypatch.setattr(secret_files, "_HELD_ENV_SECRETS", {})
     monkeypatch.setattr("deeptutor.services.auth.AUTH_ENABLED", False)
     monkeypatch.setattr(provider_module, "_CLI_SLOTS", threading.BoundedSemaphore(3))
     return FakeClient
@@ -300,8 +304,15 @@ async def test_options_isolate_the_cli(monkeypatch, tmp_path) -> None:
     assert opts.env["ENABLE_TOOL_SEARCH"] == "false"
     assert opts.env["DISABLE_AUTO_COMPACT"] == "1"
     assert opts.env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
-    # The token reaches the CLI only by inheritance, never through DeepTutor.
-    assert "CLAUDE_CODE_OAUTH_TOKEN" not in opts.env
+    assert opts.extra_args == {"no-session-persistence": None}
+    assert opts.env["CLAUDE_CODE_OAUTH_TOKEN"] == ""
+
+    # The server holds the token out of its environment; only this CLI gets it.
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "held-token")
+    secret_files.hold_env_secret("CLAUDE_CODE_OAUTH_TOKEN")
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in os.environ
+    await ClaudeAgentSDKProvider().chat([{"role": "user", "content": "q"}])
+    assert options().env["CLAUDE_CODE_OAUTH_TOKEN"] == "held-token"
 
     monkeypatch.setenv("DEEPTUTOR_CLAUDE_SDK_CLI_PATH", "/opt/claude/bin/claude")
     await ClaudeAgentSDKProvider().chat([{"role": "user", "content": "q"}])
