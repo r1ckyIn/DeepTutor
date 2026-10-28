@@ -26,7 +26,8 @@ services:
       - ../../data:/app/data
       - ../../data/user/workspace:/workspace
     environment:
-      # Read only by the bundled Claude CLI; DeepTutor never reads or stores it.
+      # The backend takes it out of its environment at startup and hands it
+      # only to the bundled Claude CLI; DeepTutor never stores or sends it.
       CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN:?deploy via up.sh, see README}"
       # Either of these would outrank the subscription token in the CLI.
       ANTHROPIC_API_KEY: ""
@@ -103,8 +104,9 @@ services:
     networks:
       - models
 
-  # OpenAI-compatible voice: Kokoro on /v1/audio/speech, faster-whisper on
-  # /v1/audio/transcriptions. seed/seed.sh downloads both models into the volume.
+  # OpenAI-compatible voice: faster-whisper on /v1/audio/transcriptions, and
+  # Kokoro on /v1/audio/speech as the offline English fallback (it cannot read
+  # Chinese). seed/seed.sh downloads both models into the volume.
   speaches:
     image: ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cpu
     container_name: deeptutor-speaches
@@ -122,6 +124,22 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    networks:
+      - models
+
+  # Speech in Chinese and English: Edge's online voices through edge-tts/server.py.
+  # The text being read goes to Microsoft; no key or account.
+  edge-tts:
+    image: deeptutor-edge-tts:local
+    build: edge-tts # documents the image; the runbook builds it with `docker build`
+    container_name: deeptutor-edge-tts
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
     networks:
       - models
 

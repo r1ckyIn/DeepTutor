@@ -18,6 +18,7 @@ CLAUDE_MODELS = {
     "claude-fable-5-1": "Claude Fable 5.1",
 }
 SPEACHES_URL = "http://speaches:8000/v1"
+EDGE_TTS_URL = "http://edge-tts:8000/v1"
 KOKORO = "speaches-ai/Kokoro-82M-v1.0-ONNX"  # same ids as the downloads in seed.sh
 WHISPER = "Systran/faster-whisper-small"
 
@@ -51,26 +52,56 @@ def seed_catalog(catalog: dict) -> None:
     services["llm"]["active_profile_id"] = LLM_PROFILE_ID
     services["llm"]["active_model_id"] = "llm-model-claude-sonnet-5-5"
 
-    # speaches picks Kokoro's language from the voice, so zh and en are two
-    # models; switch the active one in Settings > Voice. CPU synthesis of a long
-    # reply can outrun the 60 s default timeout. en is active because zh likely
-    # loses its tones: speaches phonemizes with espeak-ng, whose tone marks are
-    # not in Kokoro's vocabulary (its zh voices were trained on misaki).
-    kokoro = {"model": KOKORO, "response_format": "mp3", "request_timeout": "300"}
+    # Edge reads Chinese and English, and the voice picks the language. speaches'
+    # Kokoro cannot read Chinese (its espeak backend rejects "zh"), so it stays
+    # only as the offline English fallback. Switch voices in Settings > Voice; a
+    # long reply can outrun the 60 s default timeout. The last _upsert is active.
+    mp3 = {"response_format": "mp3", "request_timeout": "300"}
     _upsert(
         services["tts"],
         {
             "id": "tts-profile-speaches",
-            "name": "speaches (Kokoro)",
+            "name": "speaches (Kokoro, offline)",
             "binding": "custom",  # "OpenAI Compatible": no default URL, base_url is required
             "base_url": SPEACHES_URL,
             "api_key": "",
             "models": [
-                {"id": "tts-model-kokoro-zh", "name": "Kokoro zh", "voice": "zf_xiaobei", **kokoro},
-                {"id": "tts-model-kokoro-en", "name": "Kokoro en", "voice": "af_heart", **kokoro},
+                {
+                    "id": "tts-model-kokoro-en",
+                    "name": "Kokoro en",
+                    "model": KOKORO,
+                    "voice": "af_heart",
+                    **mp3,
+                }
             ],
         },
         "tts-model-kokoro-en",
+    )
+    edge = {"model": "edge-tts", **mp3}  # edge-tts/server.py ignores the model
+    _upsert(
+        services["tts"],
+        {
+            "id": "tts-profile-edge",
+            "name": "Edge (online)",
+            "binding": "custom",
+            "base_url": EDGE_TTS_URL,
+            "api_key": "",
+            "models": [
+                {
+                    "id": "tts-model-edge-zh",
+                    "name": "Edge Xiaoxiao (zh)",
+                    "voice": "zh-CN-XiaoxiaoNeural",
+                    **edge,
+                },
+                {
+                    "id": "tts-model-edge-en",
+                    "name": "Edge Ava (en)",
+                    "voice": "en-US-AvaMultilingualNeural",
+                    **edge,
+                },
+            ],
+        },
+        "tts-model-edge-zh",
     )
     _upsert(
         services["stt"],
