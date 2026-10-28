@@ -20,6 +20,9 @@ CODEX_TOKEN_URL = f"{CODEX_OAUTH_ISSUER}/oauth/token"
 CODEX_REVOKE_URL = f"{CODEX_OAUTH_ISSUER}/oauth/revoke"
 CODEX_MODELS_URL = "https://chatgpt.com/backend-api/codex/models"
 CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses"
+# Fixed on purpose: an imagegen profile's base_url is editable in Settings, and
+# the ChatGPT bearer must never follow it to another host.
+CODEX_IMAGES_URL = "https://chatgpt.com/backend-api/codex/images/generations"
 CODEX_FRESH_CACHE_SECONDS = 300
 CODEX_STALE_CACHE_SECONDS = 86_400
 CODEX_MAX_MODELS = 512
