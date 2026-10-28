@@ -739,6 +739,11 @@ async def fetch_models(
 
         return await fetch_codebuddy_models(api_key)
 
+    if canonical_provider_name(binding) == "claude_agent_sdk":
+        from .provider_core.claude_agent_sdk_provider import CLAUDE_AGENT_SDK_MODELS
+
+        return list(CLAUDE_AGENT_SDK_MODELS)
+
     if is_local_llm_server(base_url):
         from . import local_provider
 

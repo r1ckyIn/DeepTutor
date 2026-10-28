@@ -84,6 +84,10 @@ def _personal_catalog_profiles() -> list[dict[str, Any]]:
         for profile in profiles
         if isinstance(profile, dict)
         and is_owner_bound(profile)
+        # The Claude subscription belongs to the deployment owner alone; no
+        # user's own catalog may surface it.
+        and str(profile.get("binding") or "").strip().lower().replace("-", "_")
+        != "claude_agent_sdk"
         and (profile.get("managed_by") != _CODEX_MANAGED_BY or _codex_profile_is_current(profile))
     ]
 

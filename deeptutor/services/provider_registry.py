@@ -31,6 +31,7 @@ class ProviderSpec:
 
     # Which provider implementation to use:
     # "openai_compat" | "anthropic" | "azure_openai" | "openai_codex" | "github_copilot" | "codebuddy"
+    # | "claude_agent_sdk"
     backend: str = "openai_compat"
 
     env_extras: tuple[tuple[str, str], ...] = ()
@@ -459,6 +460,16 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_oauth=True,
         strip_model_prefix=True,
         supports_stream_options=False,
+    ),
+    # The owner's Claude subscription through the official Agent SDK's bundled
+    # CLI. No "claude" alias or keyword: those already mean the Anthropic API.
+    ProviderSpec(
+        name="claude_agent_sdk",
+        keywords=("claude_agent_sdk",),
+        env_key="",
+        display_name="Claude Agent (subscription)",
+        backend="claude_agent_sdk",
+        is_oauth=True,
     ),
     ProviderSpec(
         name="deepseek",

@@ -473,3 +473,34 @@ def test_supplied_catalog_marks_the_entire_run_as_a_draft() -> None:
     with patch("deeptutor.services.config.test_runner.threading.Thread"):
         run = runner.start("embedding", {"services": {}})
     assert run.persist_results is False
+
+
+def test_runs_keep_the_callers_identity(monkeypatch) -> None:
+    """The run thread inherits the request context: owner-only providers
+    refuse a call that arrives with no current user."""
+    import threading
+
+    from deeptutor.multi_user.context import (
+        get_current_user_or_none,
+        reset_current_user,
+        set_current_user,
+    )
+    from deeptutor.multi_user.paths import local_admin_user
+
+    seen: list[Any] = []
+    done = threading.Event()
+
+    def fake_run_sync(self, run, catalog) -> None:
+        seen.append(get_current_user_or_none())
+        done.set()
+
+    monkeypatch.setattr(ConfigTestRunner, "_run_sync", fake_run_sync)
+    admin = local_admin_user()
+    token = set_current_user(admin)
+    try:
+        ConfigTestRunner().start("llm", catalog={"services": {}})
+    finally:
+        reset_current_user(token)
+
+    assert done.wait(5)
+    assert seen == [admin]

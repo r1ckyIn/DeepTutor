@@ -175,6 +175,32 @@ async def test_managed_update_creates_durable_job(
 
 
 @pytest.mark.asyncio
+async def test_llm_connection_accepts_a_provider_without_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    async def _fake_complete(**kwargs: object) -> str:
+        captured.update(kwargs)
+        return "OK"
+
+    monkeypatch.setattr(
+        system_router,
+        "get_llm_config",
+        lambda: SimpleNamespace(
+            model="claude-sonnet-5-5", base_url=None, api_key="", binding="claude_agent_sdk"
+        ),
+    )
+    monkeypatch.setattr(system_router, "llm_complete", _fake_complete)
+
+    response = await system_router.test_llm_connection()
+
+    assert response.success is True
+    assert captured["base_url"] == ""
+    assert captured["binding"] == "claude_agent_sdk"
+
+
+@pytest.mark.asyncio
 async def test_embeddings_connection_uses_batch_probe(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, list[str]] = {}
 

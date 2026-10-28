@@ -93,6 +93,13 @@ def _build_runtime_provider(
             default_model=llm_config.model,
             configure_env=configure_env,
         )
+    elif backend == "claude_agent_sdk":
+        from deeptutor.services.llm.provider_core.claude_agent_sdk_provider import (
+            ClaudeAgentSDKProvider,
+        )
+
+        # No api_key: the bundled CLI authenticates itself.
+        provider = ClaudeAgentSDKProvider(default_model=llm_config.model)
     elif backend == "azure_openai":
         from deeptutor.services.llm.provider_core.azure_openai_provider import AzureOpenAIProvider
 

@@ -460,3 +460,17 @@ def test_malformed_metadata_is_ignored():
         )
         == []
     )
+
+
+@pytest.mark.asyncio
+async def test_claude_agent_sdk_probe_asks_the_cli_not_a_url(monkeypatch):
+    from deeptutor.services.llm.provider_core import claude_agent_sdk_provider
+
+    async def fake_inspect():
+        return {"status": "connected", "models": [{"id": "claude-sonnet-5-5"}]}
+
+    monkeypatch.setattr(claude_agent_sdk_provider, "inspect_cli", fake_inspect)
+
+    result = await provider_probe.probe_provider("claude_agent_sdk", "", "sk-ignored")
+
+    assert result == {"status": "connected", "models": [{"id": "claude-sonnet-5-5"}]}

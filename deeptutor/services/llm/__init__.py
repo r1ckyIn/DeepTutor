@@ -15,7 +15,7 @@ Architecture:
               ↓
     provider_core.* (one SDK-backed class per backend:
     openai_compat / anthropic / azure_openai / openai_codex /
-    github_copilot / codebuddy)
+    github_copilot / codebuddy / claude_agent_sdk)
 
 Features:
 - Unified interface for all LLM providers (cloud + local)

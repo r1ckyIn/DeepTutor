@@ -469,7 +469,8 @@ async def test_llm_connection():
     try:
         llm_config = get_llm_config()
         model = llm_config.model
-        base_url = llm_config.base_url.rstrip("/")
+        # OAuth providers such as CodeBuddy or Claude Agent SDK have no base URL.
+        base_url = (llm_config.base_url or "").rstrip("/")
 
         # Sanitize Base URL (remove /chat/completions suffix if present)
         for suffix in ["/chat/completions", "/completions"]:

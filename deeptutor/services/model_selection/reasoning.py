@@ -61,6 +61,9 @@ def supported_reasoning_efforts(
             levels = ["none", "low", "medium", "high"]
         else:
             levels = ["low", "medium", "high"]
+    elif provider == "claude_agent_sdk":
+        # The Claude CLI's effort levels; it cannot switch thinking off.
+        levels = ["low", "medium", "high", "xhigh", "max"]
     elif provider in {"anthropic", "custom_anthropic"} or "claude" in name:
         if any(
             part in name

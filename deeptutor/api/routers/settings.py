@@ -2015,7 +2015,7 @@ async def fetch_models_from_provider(payload: FetchModelsPayload):
     base_url = (payload.base_url or "").strip()
     binding = (payload.binding or "").strip().lower() or "openai"
     is_copilot = canonical_provider_name(binding) == "github_copilot"
-    if not base_url and binding != "codebuddy" and not is_copilot:
+    if not base_url and binding not in {"codebuddy", "claude_agent_sdk"} and not is_copilot:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="base_url is required for this provider.",
