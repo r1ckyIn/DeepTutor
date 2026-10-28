@@ -80,6 +80,9 @@ def _api_key(env_name: str | None, *, required: bool, section: str) -> str:
         return ""
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", env_name):
         raise ValueError(f"{section}.api_key_env must be an environment variable name.")
+    if env_name.upper() in {"CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CONFIG_DIR"}:
+        # Only the bundled Claude CLI may read the owner's Claude login.
+        raise ValueError(f"{section}.api_key_env must not name the Claude CLI's login.")
     value = os.environ.get(env_name, "")
     if not value.strip():
         raise ValueError(

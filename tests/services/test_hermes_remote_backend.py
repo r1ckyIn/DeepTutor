@@ -123,6 +123,10 @@ async def test_detect_distinguishes_configuration_failures(monkeypatch: pytest.M
     invalid_key_env = await HermesRemoteBackend(
         config=BackendConfig(base_url="http://hermes.test", api_key_env="INVALID=NAME"),
     ).detect()
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "synthetic-secret")
+    claude_login = await HermesRemoteBackend(
+        config=BackendConfig(base_url="http://hermes.test", api_key_env="CLAUDE_CODE_OAUTH_TOKEN"),
+    ).detect()
 
     def unauthorized(_: httpx.Request) -> httpx.Response:
         return httpx.Response(401)
@@ -144,6 +148,7 @@ async def test_detect_distinguishes_configuration_failures(monkeypatch: pytest.M
     assert missing_key.detail == "key_missing"
     assert invalid_url.detail == "invalid_base_url"
     assert invalid_key_env.detail == "invalid_key_env"
+    assert claude_login.detail == "invalid_key_env"
     assert unauthorized_result.detail == "unauthorized"
     assert incompatible_result.detail == "incompatible"
     assert unreachable_result.detail == "unreachable"

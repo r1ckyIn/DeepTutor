@@ -29,6 +29,8 @@ CONSULT_ORIGIN_INSTRUCTION = (
     "do not route the question to DeepTutor."
 )
 _ENV_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+# Only the bundled Claude CLI may read the owner's Claude login; never forward it.
+_CLAUDE_CLI_ENV = frozenset({"CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CONFIG_DIR"})
 _REMOTE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,511}\Z")
 _REQUIRED_CAPABILITIES = frozenset(
     {
@@ -268,7 +270,7 @@ class HermesRemoteBackend(SubagentBackend):
 
     @staticmethod
     def _valid_env_name(value: str) -> bool:
-        return bool(_ENV_NAME_RE.fullmatch(value))
+        return bool(_ENV_NAME_RE.fullmatch(value)) and value.upper() not in _CLAUDE_CLI_ENV
 
     @staticmethod
     def _valid_remote_id(value: str) -> bool:

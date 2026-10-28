@@ -146,6 +146,7 @@ def test_check_creates_no_runtime_files_and_apply_honors_explicit_home(runtime_h
         {"llm": {"provider": "unknown", "model": "model"}},
         {"llm": {"provider": "openai", "model": "model", "api_key": "do-not-echo"}},
         {"llm": {"provider": "openai", "model": "model", "api_key_env": "MISSING_SETUP_KEY"}},
+        {"llm": {"provider": "anthropic", "model": "m", "api_key_env": "CLAUDE_CODE_OAUTH_TOKEN"}},
         {
             "llm": {
                 "provider": "ollama",
@@ -159,6 +160,7 @@ def test_check_creates_no_runtime_files_and_apply_honors_explicit_home(runtime_h
 )
 def test_invalid_setup_fails_before_writes(runtime_home, tmp_path, payload, monkeypatch):
     monkeypatch.delenv("MISSING_SETUP_KEY", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "do-not-echo")
     result = apply_file(tmp_path, payload)
     assert result.exit_code == 2, result.output
     assert json.loads(result.stdout)["ok"] is False
